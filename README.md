@@ -1,19 +1,34 @@
-import 'package:firebase_auth/firebase_auth.dart';
+const express = require("express");
+const http = require("http");
+const socketIo = require("socket.io");
+const cors = require("cors");
 
-class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+const app = express();
+app.use(cors());
 
-  Future<User?> signUp(String email, String password) async {
-    var result = await _auth.createUserWithEmailAndPassword(
-        email: email, password: password);
-    return result.user;
-  }
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: { origin: "*" }
+});
 
-  Future<User?> login(String email, String password) async {
-    var result = await _auth.signInWithEmailAndPassword(
-        email: email, password: password);
-    return result.user;
-  }
+let users = {};
 
-  User? get currentUser => _auth.currentUser;
-}
+io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("register", (userId) => {
+        users[userId] = socket.id;
+    });
+
+    socket.on("sendMessage", ({ to, message }) => {
+        if (users[to]) {
+            io.to(users[to]).emit("receiveMessage", message);
+        }
+    });
+
+    socket.on("disconnect", () => {
+        console.log("Disconnected");
+    });
+});
+
+server.listen(3000, () => console.log("Server running"));
